@@ -10,11 +10,16 @@ const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 // middleware
 app.use(
   cors({
-    origin: ["http://localhost:5173"],
+    origin: [
+      "http://localhost:5173",
+      "https://shop-house-429cb.web.app",
+      "https://shop-house-429cb.firebaseapp.com",
+    ],
     credentials: true,
   })
 );
 app.use(express.json());
+app.use(cookieParser());
 
 // middlewares
 const logger = (req, res, next) => {
@@ -28,16 +33,15 @@ const verrifyToken = (req, res, next) => {
   if (!token) {
     return res.satus(401).send({ message: "unauthorized" });
   }
-  jwt.verify(token, process.env.ACACCESS_TOKEN_SECRECT, (err, decoded) => {
+  jwt.verify(token, process.env.ACCESS_TOKEN_SECRECT, (err, decoded) => {
     if (err) {
       return res.status(401).send({ message: "unauthorized" });
     }
 
     console.log("decoded =", decoded);
     req.user = decoded;
+    next();
   });
-
-  next();
 };
 
 // mongodb
@@ -67,10 +71,10 @@ const cartCollection = client.db("shopHouseDB").collection("carts");
 app.post("/jwt", (req, res) => {
   //get user
   const user = req.body;
-  console.log("user of token", user);
+  console.log("user of token email", user);
 
   // create token
-  const token = jwt.sign(user, process.env.ACACCESS_TOKEN_SECRECT, {
+  const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRECT, {
     expiresIn: "24h",
   });
 
@@ -128,8 +132,38 @@ app.post("/cart", async (req, res) => {
   res.send(result);
 });
 
-app.get("/cart", async (req, res) => {
-  const result = await cartCollection.find().toArray();
+app.get("/cart", logger, verrifyToken, async (req, res) => {
+  if (req.query?.email !== req.user?.email) {
+    res.status(403).send({ message: "forbidden access" });
+  }
+
+  let query = {};
+  if (req.query?.email) {
+    query = { email: req.query?.email };
+  }
+  const result = await cartCollection.find(query).toArray();
+  res.send(result);
+});
+
+app.delete("/cart/:id", async (req, res) => {
+  const id = req.params.id;
+  const query = { _id: new ObjectId(id) };
+  const result = await cartCollection.deleteOne(query);
+  res.send(result);
+});
+
+app.patch("/cart/:id", async (req, res) => {
+  const id = req.params.id;
+  const filter = { _id: new ObjectId(id) };
+  const updatedConfirmData = req.body;
+
+  const udpatedDoc = {
+    $set: {
+      status: updatedConfirmData.status,
+    },
+  };
+
+  const result = await cartCollection.updateOne(filter, udpatedDoc);
   res.send(result);
 });
 
