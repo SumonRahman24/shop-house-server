@@ -69,7 +69,6 @@ const cartCollection = client.db("shopHouseDB").collection("carts");
 
 // jwt auth apis route
 app.post("/jwt", (req, res) => {
-  //get user
   const user = req.body;
   console.log("user of token email", user);
 
